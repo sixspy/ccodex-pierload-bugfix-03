@@ -1,7 +1,7 @@
 export const overloadViewTemplate = `
 <section class="panel">
   <h2>超重旁路</h2>
-  <p class="hint">开放挂起驶向旁路；闭环后票态回到已裁定方可放行。</p>
+  <p class="hint">开放挂起驶向旁路；闭环后票态回到已裁定方可放行。旁路开放期间对封闸的请求只落影子草稿，闭环时原子晋升为正式快照。</p>
   <div class="form-row">
     <div><label>过磅票</label>
       <select v-model.number="overloadOpenForm.ticket_id">
@@ -15,13 +15,19 @@ export const overloadViewTemplate = `
     <button class="secondary" @click="refresh">刷新</button>
   </div>
   <table class="data-table">
-    <thead><tr><th>键</th><th>票号</th><th>超重</th><th>阈值</th><th>状态</th><th></th></tr></thead>
+    <thead><tr><th>键</th><th>票号</th><th>超重</th><th>阈值</th><th>待晋升草稿</th><th>状态</th><th></th></tr></thead>
     <tbody>
       <tr v-for="h in overloads" :key="h.id">
         <td class="mono">{{ h.hold_key }}</td>
         <td>{{ h.ticket_code }}</td>
         <td>{{ h.overweight_t }}t</td>
         <td>{{ h.threshold_t }}t</td>
+        <td>
+          <span v-if="draftCountForTicket(h.ticket_id) > 0" class="badge warn">
+            {{ draftCountForTicket(h.ticket_id) }} 份待晋升
+          </span>
+          <span v-else class="badge muted">—</span>
+        </td>
         <td><span class="badge" :class="h.status==='开放'?'fail':'pass'">{{ h.status }}</span></td>
         <td>
           <button v-if="h.status==='开放'" class="mini-btn" @click="closeOverload(h.id)">闭环</button>

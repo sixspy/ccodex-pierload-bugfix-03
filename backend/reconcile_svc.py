@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from auth import AuthHeader, require_user
+from side_lane_policy import DRAFT_STATUS
 from validators import validate_bl_match
 
 router = APIRouter(tags=["reconcile"])
@@ -65,6 +66,13 @@ def _reconcile_bl(conn, bl_code: str) -> dict:
            WHERE t.bl_ref=?""",
         (bl_code,),
     ).fetchall()
+    # 未晋升草稿单列，绝不计入已封快照（旁封修丙）。
+    draft_rows = conn.execute(
+        """SELECT d.draft_ref, d.ticket_generation, t.ticket_code
+           FROM seal_drafts d JOIN weigh_tickets t ON t.id=d.ticket_id
+           WHERE t.bl_ref=? AND d.status=?""",
+        (bl_code, DRAFT_STATUS),
+    ).fetchall()
     proof_ok = matched and len(seal_rows) >= 1
     return {
         "bl_code": bl_code,
@@ -73,6 +81,8 @@ def _reconcile_bl(conn, bl_code: str) -> dict:
         "balanced": matched,
         "proof_ready": proof_ok,
         "seal_count": len(seal_rows),
+        "draft_count": len(draft_rows),
+        "drafts_pending_promotion": [dict(d) for d in draft_rows],
         "tickets": [dict(t) for t in tickets],
         "seals": [dict(s) for s in seal_rows],
     }
@@ -104,6 +114,10 @@ def proof_ticket(ticket_code: str, authorization: AuthHeader = None):
             """SELECT id FROM overload_holds WHERE ticket_id=? AND status='开放'""",
             (ticket["id"],),
         ).fetchone()
+        draft_pending = conn.execute(
+            """SELECT id FROM seal_drafts WHERE ticket_id=? AND status=?""",
+            (ticket["id"], DRAFT_STATUS),
+        ).fetchone()
         manifest_match = False
         if seal and bl:
             manifest_match = validate_bl_match(
@@ -116,9 +130,13 @@ def proof_ticket(ticket_code: str, authorization: AuthHeader = None):
             "manifest_matches_bl": manifest_match,
             "has_seal": seal is not None,
             "seal_generation": seal["ticket_generation"] if seal else None,
+            "seal_draft_pending": draft_pending is not None,
             "released": release is not None,
             "overload_closed": overload_closed,
             "coherent": bool(
-                manifest_match and overload_closed and (seal or release)
+                manifest_match
+                and overload_closed
+                and (seal or release)
+                and draft_pending is None
             ),
         }

@@ -7,6 +7,7 @@ from auth import AuthHeader, require_user, require_writer
 from db import connect, now_iso, write_audit
 from locks import release, require_lock
 from models import OverloadCloseIn, OverloadOpenIn
+from seal_svc import promote_pending_drafts
 from validators import adjudicate_overload, validate_ticket_mutable
 
 router = APIRouter(tags=["overload"])
@@ -116,14 +117,24 @@ def close_overload(body: OverloadCloseIn, authorization: AuthHeader = None):
                    WHERE ticket_id=? AND status='开放'""",
                 (hold["ticket_id"],),
             ).fetchone()["c"]
+            promoted: list[str] = []
             if not open_left:
-                conn.execute(
-                    """UPDATE weigh_tickets SET status='已裁定', adjudicated_at=?
-                       WHERE id=?""",
-                    (now, hold["ticket_id"]),
-                )
+                # 旁路闭合并原子晋升：草稿 → 正式快照，票代 +1；无草稿回已裁定。
+                promoted = promote_pending_drafts(conn, hold["ticket_id"], user)
+                if not promoted:
+                    conn.execute(
+                        """UPDATE weigh_tickets SET status='已裁定', adjudicated_at=?
+                           WHERE id=?""",
+                        (now, hold["ticket_id"]),
+                    )
             write_audit(conn, user, "overload_close", hold["hold_key"], {"note": body.note})
             conn.commit()
-            return {"ok": True, "hold_id": body.hold_id, "ticket_adjudicated": not open_left}
+            return {
+                "ok": True,
+                "hold_id": body.hold_id,
+                "ticket_adjudicated": not open_left and not promoted,
+                "promoted_seal_ref": promoted[0] if promoted else None,
+                "promoted_seals": promoted,
+            }
         finally:
             release(conn, lock_key, user)

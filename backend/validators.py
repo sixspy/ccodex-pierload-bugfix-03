@@ -59,6 +59,29 @@ def validate_ticket_sealable(ticket: dict) -> None:
         raise HTTPException(409, "票态已锁定")
 
 
+def find_open_side_hold(conn, ticket_id: int):
+    """旁路开放仍在上册？返回开放挂起行（无则 None）。"""
+    return conn.execute(
+        """SELECT id, hold_key FROM overload_holds
+           WHERE ticket_id=? AND status='开放' LIMIT 1""",
+        (ticket_id,),
+    ).fetchone()
+
+
+def validate_side_lane_sealable(conn, ticket: dict) -> bool:
+    """旁路禁封校验（旁封修丙）。
+
+    返回 True 表示“旁路开放未结”，调用方只能走影子草稿；
+    返回 False 表示无开放旁路，可按正式流程封闸。
+
+    票态为旁路挂起时即便开放挂起行缺失也按未结处理（票态优先，防旁路）。
+    """
+    open_hold = find_open_side_hold(conn, ticket["id"])
+    if ticket["status"] == "旁路挂起" or open_hold is not None:
+        return True
+    return False
+
+
 def validate_no_open_overload(conn, ticket_id: int) -> None:
     row = conn.execute(
         """SELECT id FROM overload_holds

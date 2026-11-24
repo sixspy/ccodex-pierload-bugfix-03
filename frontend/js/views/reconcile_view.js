@@ -13,7 +13,7 @@ export const reconcileViewTemplate = `
     <div v-if="reconOne" class="detail-box">
       <p>申报 {{ reconOne.declared_gross_t }}t · 过磅合计 {{ reconOne.ticket_sum_t }}t</p>
       <p :class="reconOne.balanced ? 'ok' : 'bad'">{{ reconOne.balanced ? '账实平衡' : '偏差待查' }}</p>
-      <p>快照数 {{ reconOne.seal_count }} · 可出证明 {{ reconOne.proof_ready ? '是' : '否' }}</p>
+      <p>快照数 {{ reconOne.seal_count }} · 草稿待晋升 {{ reconOne.draft_count ?? 0 }} · 可出证明 {{ reconOne.proof_ready ? '是' : '否' }}</p>
     </div>
     <ul v-if="reconAllItems.length">
       <li v-for="r in reconAllItems" :key="r.bl_code">{{ r.bl_code }} · {{ r.balanced ? '平' : '偏' }}</li>
@@ -26,6 +26,7 @@ export const reconcileViewTemplate = `
     <div v-if="proofOne" class="detail-box">
       <p>提单匹配 {{ proofOne.manifest_matches_bl ? '是' : '否' }}</p>
       <p>超重闭环 {{ proofOne.overload_closed ? '是' : '否' }}</p>
+      <p>封闸草稿待晋升 {{ proofOne.seal_draft_pending ? '是' : '否' }}</p>
       <p>已放行 {{ proofOne.released ? '是' : '否' }}</p>
       <p>一致 {{ proofOne.coherent ? '是' : '否' }}</p>
     </div>

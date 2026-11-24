@@ -125,6 +125,19 @@ CREATE TABLE IF NOT EXISTS gate_seals(
   sealed_at TEXT NOT NULL,
   FOREIGN KEY(ticket_id) REFERENCES weigh_tickets(id)
 );
+CREATE TABLE IF NOT EXISTS seal_drafts(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticket_id INTEGER NOT NULL,
+  ticket_generation INTEGER NOT NULL,
+  manifest TEXT NOT NULL,
+  draft_ref TEXT NOT NULL,
+  status TEXT NOT NULL,
+  requested_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  promoted_at TEXT,
+  promoted_seal_id INTEGER,
+  FOREIGN KEY(ticket_id) REFERENCES weigh_tickets(id)
+);
 CREATE TABLE IF NOT EXISTS bl_manifests(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   bl_code TEXT UNIQUE NOT NULL,

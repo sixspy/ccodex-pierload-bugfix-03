@@ -31,6 +31,7 @@ export function createApi(getToken, onUnauthorized) {
     gateReleases: () => req("/api/gate/releases"),
     releaseGate: (d) => req("/api/gate/release", { method: "POST", body: JSON.stringify(d) }),
     seals: () => req("/api/seals"),
+    sealDrafts: () => req("/api/seal-drafts"),
     createSeal: (d) => req("/api/seals", { method: "POST", body: JSON.stringify(d) }),
     blList: () => req("/api/bl"),
     registerBl: (d) => req("/api/bl", { method: "POST", body: JSON.stringify(d) }),

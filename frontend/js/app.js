@@ -59,6 +59,7 @@ createApp({
     const overloadOpenForm = ref({ ticket_id: 0, side_lane_note: "" });
     const gateForm = ref({ ticket_id: 0, officer: "闸口值班" });
     const sealForm = ref({ ticket_id: 0, manifest: "" });
+    const sealDrafts = ref([]);
     const blForm = ref({
       bl_code: "BL-NEW-01", cargo_desc: "件杂货", declared_gross_t: 30, vessel_voyage: "试航/001",
     });
@@ -83,8 +84,12 @@ createApp({
       tickets.value.filter((t) => t.status === "已裁定")
     );
     const sealableTickets = computed(() =>
-      tickets.value.filter((t) => ["已裁定","已放行"].includes(t.status))
+      tickets.value.filter((t) => ["已裁定","已放行","旁路挂起"].includes(t.status))
     );
+    const sealBlockedByHold = computed(() => {
+      const t = tickets.value.find((x) => x.id === sealForm.value.ticket_id);
+      return !!t && t.status === "旁路挂起";
+    });
 
     function fmtT(n) {
       if (n == null || n === "") return "—";
@@ -101,6 +106,11 @@ createApp({
       if (!t) return "";
       const s = String(t);
       return s.slice(0, 52) + (s.length > 52 ? "…" : "");
+    }
+    function draftCountForTicket(ticketId) {
+      return sealDrafts.value.filter(
+        (d) => d.ticket_id === ticketId && d.status === "草稿待晋升"
+      ).length;
     }
     function clearFlash() { actionErr.value = ""; actionOk.value = ""; }
     function flashOk(m) { actionOk.value = m; actionErr.value = ""; }
@@ -126,9 +136,9 @@ createApp({
       if (!token.value) return;
       clearFlash();
       try {
-        const [d, br, ln, tk, ov, gr, sl, bl, lg, cj, cj2] = await Promise.all([
+        const [d, br, ln, tk, ov, gr, sl, sdr, bl, lg, cj, cj2] = await Promise.all([
           api.dashboard(), api.bridges(), api.lanes(), api.tickets(), api.overloads(),
-          api.gateReleases(), api.seals(), api.blList(), api.lineage(),
+          api.gateReleases(), api.seals(), api.sealDrafts(), api.blList(), api.lineage(),
           api.customsJobs(), api.craneJobs(),
         ]);
         dash.value = d || {};
@@ -138,6 +148,7 @@ createApp({
         overloads.value = ov.items || [];
         gateReleases.value = gr.items || [];
         seals.value = sl.items || [];
+        sealDrafts.value = sdr.items || [];
         blList.value = bl.items || [];
         lineageEdges.value = lg.items || [];
         customsJobs.value = cj.items || [];
@@ -216,7 +227,12 @@ createApp({
         const p = { ticket_id: sealForm.value.ticket_id };
         if (sealForm.value.manifest) p.manifest = sealForm.value.manifest;
         const r = await api.createSeal(p);
-        flashOk(`快照 闸代${r.generation}`); await refresh();
+        if (r && r.draft) {
+          flashOk(`旁路开放禁封：已落影子草稿 ${r.draft_ref}，待旁路闭合原子晋升`);
+        } else {
+          flashOk(`快照 闸代${r.generation}`);
+        }
+        await refresh();
       } catch (e) { flashErr(e); }
     }
     async function registerBl() {
@@ -261,14 +277,14 @@ createApp({
 
     return {
       token, user, username, password, err, actionErr, actionOk, tab, nav,
-      dash, bridges, lanes, tickets, overloads, gateReleases, seals, blList,
+      dash, bridges, lanes, tickets, overloads, gateReleases, seals, sealDrafts, blList,
       lineageEdges, customsJobs, craneJobs, bridgeDetail, ticketDetail,
       reconOne, reconAllItems, proofOne, reconCode, proofCode,
       bridgeForm, laneForm, ticketForm, overloadOpenForm, gateForm, sealForm,
       blForm, lineageForm, customsForm, craneForm,
-      adjudicableTickets, releasableTickets, sealableTickets,
+      adjudicableTickets, releasableTickets, sealableTickets, sealBlockedByHold,
       login, logout, refresh,
-      fmtT, ticketClass, shortText,
+      fmtT, ticketClass, shortText, draftCountForTicket,
       createBridge, loadBridgeDetail, createLane, createTicket, loadTicketDetail, selectTicket,
       openOverload, closeOverload, releaseGate, createSeal, registerBl, addLineage,
       loadReconcile, loadAllReconcile, loadProof, enqueueCustoms, enqueueCrane,

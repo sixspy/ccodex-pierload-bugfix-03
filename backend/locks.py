@@ -45,6 +45,8 @@ def release(conn, lock_key: str, holder: str) -> None:
 
 def require_lock(conn, lock_key: str, holder: str) -> None:
     if not try_acquire(conn, lock_key, holder):
+        # 争用痕须先落盘：业务事务回滚时不得连带抹掉（旁封修丙 · 争用第18路）。
+        conn.commit()
         raise HTTPException(409, "争用：后到只记争用，不写业务")
 
 
